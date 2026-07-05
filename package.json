@@ -1,0 +1,48 @@
+{
+  "name": "swagger-storage",
+  "version": "0.1.0",
+  "description": "Persist and re-seed Swagger UI 'Try it out' request bodies across reloads, per project.",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "express.js",
+    "express.d.ts",
+    "browser",
+    "src",
+    "dist",
+    "scripts/postinstall.js",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup browser/persist.js --format iife --global-name SwaggerStorage --out-dir dist --minify --clean",
+    "prepublishOnly": "npm run build && npm test",
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node --test",
+    "example": "cd examples/basic-express-app && node server.js"
+  },
+  "keywords": [
+    "swagger",
+    "swagger-ui",
+    "swagger-ui-express",
+    "openapi",
+    "localstorage",
+    "persistence"
+  ],
+  "license": "MIT",
+  "author": "Saurabh Manikeri",
+  "engines": {
+    "node": ">=16"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0 || >=5.0.0-beta",
+    "swagger-ui-express": ">=4"
+  },
+  "devDependencies": {
+    "express": "^4.21.2",
+    "swagger-ui-express": "^5.0.1",
+    "tsup": "^8.3.5",
+    "typescript": "^6.0.3"
+  }
+}

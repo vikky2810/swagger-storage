@@ -1,0 +1,18 @@
+{
+  "name": "basic-express-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Example app demonstrating swagger-storage with swagger-ui-express.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "swagger-storage": "file:../..",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "swaggerStorage": {
+    "token": "0d41eb52-545a-4205-a4f2-350d1a911cd0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "basic-express-app-2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Second example app (different project token) to verify isolation from basic-express-app when served on the same port.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "swagger-storage": "file:../..",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "swaggerStorage": {
+    "token": "e1991d33-a912-4594-8ae1-d0722419e610"
+  }
+}
