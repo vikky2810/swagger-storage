@@ -16,6 +16,12 @@ function makeTempProject(name) {
   return dir
 }
 
+function makeRawProject(prefix, raw) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  fs.writeFileSync(path.join(dir, 'package.json'), raw)
+  return dir
+}
+
 function withInitCwd(dir, fn) {
   const prev = process.env.INIT_CWD
   process.env.INIT_CWD = dir
@@ -64,6 +70,83 @@ test('ensureToken skips when INIT_CWD is unset', () => {
   } finally {
     if (prev !== undefined) process.env.INIT_CWD = prev
   }
+})
+
+test('ensureToken does not inject blank lines when package.json contains one', () => {
+  const dir = makeRawProject(
+    'swagger-storage-test-blank-',
+    '{\n\n  "name": "blank-line-project",\n  "version": "1.0.0"\n}\n'
+  )
+  withInitCwd(dir, () => {
+    const token = ensureToken()
+    const after = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    assert.ok(
+      !/\n[ \t]*\n/.test(after.trim()),
+      'blank lines were injected between keys:\n' + after
+    )
+    assert.equal(JSON.parse(after).name, 'blank-line-project')
+    assert.equal(JSON.parse(after).swaggerStorage.token, token)
+    assert.match(after, /\n  "version":/, 'top-level indentation should stay at two spaces')
+    assert.match(after, /\n    "token":/, 'nested indentation should stay at four spaces')
+  })
+})
+
+test('ensureToken does not inject blank lines on a CRLF package.json', () => {
+  // git's core.autocrlf leaves plenty of Windows checkouts with \r\n endings.
+  // JSON.stringify always emits \n, so the rewrite normalizes endings either
+  // way; what's asserted here is only that no blank lines get injected.
+  const dir = makeRawProject(
+    'swagger-storage-test-crlf-',
+    '{\r\n\r\n  "name": "crlf-project",\r\n  "version": "1.0.0"\r\n}\r\n'
+  )
+  withInitCwd(dir, () => {
+    ensureToken()
+    const after = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    assert.ok(
+      !/\n[ \t\r]*\n/.test(after.trim()),
+      'blank lines were injected between keys:\n' + after
+    )
+    assert.equal(JSON.parse(after).name, 'crlf-project')
+  })
+})
+
+test('ensureToken preserves tab indentation', () => {
+  const dir = makeRawProject(
+    'swagger-storage-test-tab-',
+    JSON.stringify({ name: 'tab-project', version: '1.0.0' }, null, '\t') + '\n'
+  )
+  withInitCwd(dir, () => {
+    ensureToken()
+    const after = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    assert.match(after, /\n\t"version":/)
+    assert.match(after, /\n\t\t"token":/)
+  })
+})
+
+test('ensureToken preserves four-space indentation', () => {
+  const dir = makeRawProject(
+    'swagger-storage-test-four-',
+    JSON.stringify({ name: 'four-space-project', version: '1.0.0' }, null, 4) + '\n'
+  )
+  withInitCwd(dir, () => {
+    ensureToken()
+    const after = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    assert.match(after, /\n    "version":/)
+    assert.match(after, /\n        "token":/)
+  })
+})
+
+test('ensureToken falls back to two spaces for a minified package.json', () => {
+  const dir = makeRawProject(
+    'swagger-storage-test-min-',
+    '{"name":"minified-project","version":"1.0.0"}'
+  )
+  withInitCwd(dir, () => {
+    const token = ensureToken()
+    const after = fs.readFileSync(path.join(dir, 'package.json'), 'utf8')
+    assert.equal(JSON.parse(after).swaggerStorage.token, token)
+    assert.match(after, /\n  "version":/)
+  })
 })
 
 test('readToken reads back a written token', () => {
