@@ -1,6 +1,6 @@
 {
   "name": "swagger-storage",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Persist and re-seed Swagger UI 'Try it out' request bodies across reloads, per project.",
   "main": "index.js",
   "types": "index.d.ts",
