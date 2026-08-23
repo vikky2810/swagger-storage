@@ -84,7 +84,7 @@ function ensureToken() {
 }
 
 function detectIndent(raw) {
-  const match = raw.match(/^(\s+)"/m)
+  const match = raw.match(/^([ \t]+)"/m)
   return match ? match[1] : 2
 }
 
