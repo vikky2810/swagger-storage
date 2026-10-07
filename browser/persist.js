@@ -49,6 +49,80 @@
     }
   }
 
+  // Form bodies (x-www-form-urlencoded / multipart) are stored as JSON behind
+  // this prefix; JSON and plain text bodies are stored as the raw string.
+  var FORM_PREFIX = 'swagger-storage-form:'
+
+  // What 0.1.1 wrote for form bodies: an Immutable Map's toString(), which
+  // can't be parsed back.
+  var LEGACY_FORM_VALUE = /^(Ordered)?Map \{/
+
+  function isPlainValue(v) {
+    if (v === null) return true
+    var type = typeof v
+    if (type === 'string' || type === 'number' || type === 'boolean') return true
+    if (Array.isArray(v)) return v.every(isPlainValue)
+    return false
+  }
+
+  /**
+   * Turns a request body value into the string to store. Returns '' when
+   * there is nothing worth storing, or undefined when the value can't be
+   * stored at all and the existing entry should be left alone.
+   */
+  function serializeBodyValue(value) {
+    if (value === undefined || value === null || typeof value === 'string') return value
+    if (typeof value.toJS !== 'function') return undefined
+
+    // Form bodies look like { field: { value, errors } }. Only `value` is
+    // kept, flattened to { field: value } because that's the shape
+    // setRequestBodyValue takes. File uploads (File/Blob) can't go into
+    // localStorage and are dropped.
+    var fields = value.toJS()
+    var out = {}
+    var count = 0
+    Object.keys(fields).forEach(function (name) {
+      var field = fields[name]
+      if (!field || typeof field !== 'object' || !isPlainValue(field.value)) return
+      out[name] = field.value
+      count++
+    })
+    return count > 0 ? FORM_PREFIX + JSON.stringify(out) : ''
+  }
+
+  /**
+   * Builds Immutable values without Immutable itself, which Swagger UI
+   * doesn't expose: empty Map/List instances are taken from the store state
+   * (an Immutable Map) and filled in.
+   */
+  function toImmutable(ui, js) {
+    var state = ui.getState()
+    var emptyMap = state.clear()
+    var emptyList = state.toList().clear()
+
+    function convert(v) {
+      if (Array.isArray(v)) return emptyList.concat(v.map(convert))
+      if (v && typeof v === 'object') {
+        return emptyMap.withMutations(function (m) {
+          Object.keys(v).forEach(function (k) {
+            m.set(k, convert(v[k]))
+          })
+        })
+      }
+      return v
+    }
+    return convert(js)
+  }
+
+  /** Turns a stored string back into a request body value, or undefined if unusable. */
+  function deserializeBodyValue(ui, stored) {
+    if (stored.indexOf(FORM_PREFIX) === 0) {
+      return toImmutable(ui, JSON.parse(stored.slice(FORM_PREFIX.length)))
+    }
+    if (LEGACY_FORM_VALUE.test(stored)) return undefined
+    return stored
+  }
+
   /** Returns [{ path, method }] for every operation in the loaded spec. */
   function listOperations(ui) {
     var ops = []
@@ -80,7 +154,13 @@
       if (saved == null) return
       var pathMethod = [op.path, op.method]
       try {
-        ui.oas3Actions.setRequestBodyValue({ value: saved, pathMethod: pathMethod })
+        var value = deserializeBodyValue(ui, saved)
+        if (value === undefined) {
+          writeStored(op.method, op.path, null)
+          log('dropped unreadable saved value for', op.method, op.path)
+          return
+        }
+        ui.oas3Actions.setRequestBodyValue({ value: value, pathMethod: pathMethod })
         // Without this, Swagger UI's RequestBody component resets the field
         // back to the spec's default example value the first time it mounts
         // (e.g. when the user clicks "Try it out"), clobbering the restore.
@@ -133,7 +213,9 @@
           var value = requestBodyValue(ui, op)
           if (value !== lastSeen[key]) {
             lastSeen[key] = value
-            writeStored(op.method, op.path, value)
+            var serialized = serializeBodyValue(value)
+            if (serialized === undefined) return
+            writeStored(op.method, op.path, serialized)
             log('captured', op.method, op.path)
           }
         })
